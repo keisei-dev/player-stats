@@ -1,111 +1,94 @@
-# Midterm — Player Performance Explorer
+# Player Performance Explorer
 
-Build a full-stack app that imports a real dataset into PostgreSQL and lets a
-user **browse, search, and manage** it. Individual work.
+A full-stack app for browsing, searching, and managing FIFA World Cup 2026 player match statistics, built with Astro, Express (TypeScript), and PostgreSQL.
 
-**Stack:** Astro (front end) · Node.js / Express (back end) · PostgreSQL via the
-`pg` library (Pool connection).
+_No live demo: the app runs locally._
 
-## The dataset
+![Performances list](deliverables/ui_performances_list.png)
 
-You are given one flat CSV of football **player match performances** — each row
-is *one player's stats in one match* (player info, match info, and performance
-stats all mixed together).
+| Detail / edit | Create | Rankings |
+| --- | --- | --- |
+| ![Detail](deliverables/ui_performance_detail.png) | ![Create](deliverables/ui_performance_create.png) | ![Rankings](deliverables/ui_rankings.png) |
 
-## What to build
+## Features
 
-1. **Set up the database** — run the provided [`docs/setup_db.sql`](./docs/setup_db.sql),
-   which imports the CSV and normalizes it into `players`, `matches`, and
-   `performances` (see [Set up the database](#set-up-the-database) below).
-2. **CRUD** — create, read, update, and delete records in your database.
-3. **Paginated list page** — server-side pagination with a **rows-per-page
-   selector** (e.g. 10 / 25 / 50 / 100) and page navigation.
-4. **Detail view** — clicking a row opens a **detail page or modal** with that
-   record's full information.
-5. **Search / filter / sort** — on meaningful columns (e.g. name, position, team).
-6. **At least one JOIN** across your tables and **one aggregate**
-   (`COUNT` / `AVG` / `SUM` with `GROUP BY`) — e.g. a leaderboard or per-player totals.
-7. **Safe queries** — use the `pg` Pool with **parameterized queries** (`$1`),
-   never string concatenation (SQL injection).
+- **Paginated list** of player performances with server-side pagination and a rows-per-page selector (10 / 25 / 50 / 100).
+- **Search, filter, and sort.** Search by player name (case-insensitive `ILIKE`), filter by position or team, and sort by name, team, position, match date, goals, assists, minutes, or rating.
+- **Full CRUD.** View the details of any record, edit its stats, delete it, or create a new one.
+- **Rankings page** with per-player totals: matches played, total goals, total assists, and average rating.
+- **Clear API errors**, for example 400 for an unknown player or match, 409 for a duplicate player and match pair, and 404 when a record isn't found.
 
-## Set up the database
+## Tech stack
 
-The schema is built for you. [`docs/setup_db.sql`](./docs/setup_db.sql) imports
-the CSV and normalizes it into **3 related tables** — `players`, `matches`, and
-`performances`. To run it:
+- **Frontend:** Astro 5 (SSR, `@astrojs/node` standalone adapter)
+- **Backend:** Node.js, Express 4, TypeScript (run with `tsx`)
+- **Database:** PostgreSQL via `pg` (connection `Pool`)
+- **Tooling:** npm workspaces, `concurrently`
 
-1. Create a database and connect to it (in your shell):
+## How it works
+
+### Database schema
+
+`docs/setup_db.sql` loads the flat CSV into a staging table, then normalizes it into three tables:
+
+| Table | One row per | Key |
+| --- | --- | --- |
+| `players` | player | `player_id` (PK) |
+| `matches` | match | `match_id` (PK) |
+| `performances` | player in a match (stats) | `id` (PK); `player_id` → `players`, `match_id` → `matches`; `UNIQUE (player_id, match_id)` |
+
+The design is explained in [`deliverables/reflection.md`](deliverables/reflection.md), with schema screenshots in `deliverables/`.
+
+### SQL highlights
+
+- **JOINs:** the list and detail endpoints join `performances` with `players` and `matches`.
+- **Aggregation:** `/api/rankings` uses `COUNT`, `SUM`, and `AVG(...) FILTER (WHERE minutes_played > 0)` with `GROUP BY` per player.
+- **Server-side pagination:** `LIMIT` / `OFFSET`, plus a separate `COUNT(*)` for the total number of pages.
+- **Parameterized queries:** all user input is passed as `$1, $2, …` through a shared `query()` helper. Sort columns and editable fields come from server-side whitelists, never from raw input.
+
+### API
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| GET | `/api/performances` | List (`page`, `pageSize`, `q`, `position`, `team`, `sort`, `order`) |
+| GET | `/api/performances/filters` | Distinct positions and teams |
+| GET | `/api/performances/:id` | Detail with player and match info |
+| POST | `/api/performances` | Create (requires `player_id`, `match_id`) |
+| PUT | `/api/performances/:id` | Update editable stats |
+| DELETE | `/api/performances/:id` | Delete |
+| GET | `/api/rankings` | Leaderboard (`sort=goals\|assists\|rating`, `limit` ≤ 100) |
+| GET | `/api/health`, `/api/health/db` | Health checks |
+
+```
+server/src/   index.ts, db.ts, routes/performances.ts, routes/rankings.ts
+web/src/      pages/ (performances list, [id], new, rankings), lib/api.ts
+docs/         setup_db.sql, CSV dataset
+deliverables/ reflection, schema and UI screenshots
+```
+
+## Getting started
+
+**Prerequisites:** Node.js and PostgreSQL.
+
+1. Create the database and load the data:
    ```bash
-   CREATE DATABASE worldcup
-   psql -h localhost -U postgres -d worldcup
+   createdb worldcup
+   cd docs
+   psql -d worldcup -f setup_db.sql   # run from docs/ so \copy finds the CSV
    ```
-2. Inside `psql`, move into the `docs/` folder (it holds both the CSV and the
-   script) and run it:
+2. Install dependencies and configure the environment:
+   ```bash
+   cd ..
+   npm install
+   cp .env.example .env
    ```
-   \cd /path/to/wd-203-midterm-player-stats/docs
-   \i setup_db.sql
+   Set `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`, `PORT` (API, default 3000), and `PUBLIC_API_BASE_URL` (used by the Astro front end).
+3. Run the API and the web app together:
+   ```bash
+   npm run dev
    ```
-3. Done — the script prints a row count and leaves you with three tables:
+   API: http://localhost:3000. Web: http://localhost:4321.
 
-   | table | one row per… | key |
-   |---|---|---|
-   | `players` | player | `player_id` (PK) |
-   | `matches` | match | `match_id` (PK) |
-   | `performances` | player **in** a match (the stats) | FKs → `players`, `matches` |
+## Background
 
-**Read `setup_db.sql`** and make sure you understand *why* the data is split this
-way — you'll join across these tables and explain the design in your reflection.
-
-## Requirements checklist
-
-- [ ] Database set up with `setup_db.sql` (players / matches / performances)
-- [ ] Full CRUD
-- [ ] Pagination + rows-per-page selector
-- [ ] Detail page or modal
-- [ ] Search / filter / sort
-- [ ] At least one JOIN and one aggregate query
-- [ ] Parameterized queries throughout
-
-## Grading
-
-- The requirements checklist above is the basis for your grade.
-- You must **understand the database design** — your reflection must explain how
-  the data is normalized (`players` / `matches` / `performances`) and why.
-  "I just ran the script" is not enough.
-
-## What we provide
-
-Everything is in the [`docs/`](./docs) folder:
-
-- **The dataset** — [`docs/fifa_world_cup_2026_player_performance.csv`](./docs/fifa_world_cup_2026_player_performance.csv)
-- **The DB setup script** — [`docs/setup_db.sql`](./docs/setup_db.sql) (imports + normalizes the data)
-- This README
-- A **sample UI** for reference — you may tweak the design as you like
-
-### Sample UI (in `docs/`)
-
-- [`docs/player_performance.png`](./docs/player_performance.png) — list page (pagination, search, sort, "Add")
-- [`docs/edit_performance.png`](./docs/edit_performance.png) — detail / edit / delete form
-- [`docs/rankings.png`](./docs/rankings.png) — rankings (JOIN + aggregate)
-
-> The mockups are **illustrative** — build against the **actual CSV columns**
-> (some sample fields/labels won't match the dataset exactly).
-
-## Notes
-
-- **No hosting required** — the app only needs to run locally.
-- Suggested order: run `setup_db.sql` → build & test endpoints in Postman → then
-  build the Astro front end.
-
-## Submission — `deliverables/` folder
-
-Create a folder named **`deliverables/`** in the project root containing:
-
-1. **`reflection.md`** — ~3 paragraphs: what you built, **how the data is
-   normalized and why** (which columns live in which table, and the foreign keys),
-   and the challenges you hit or what you'd improve.
-2. **Normalization screenshot(s)** — your tables with **column headers clearly
-   visible**, showing how the flat CSV was split (a DB GUI view or `\d`/query
-   output is fine).
-3. **UI screenshots** — each page of your app (list, detail, and any
-   create/edit views).
+Built as an individual course project (WD-203, Databases and React) at Cornerstone International Community College (CICCC). The dataset and the `setup_db.sql` script were provided by the course.
