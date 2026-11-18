@@ -1,34 +1,17 @@
 import { Router } from "express";
 import type { Request } from "express";
 import { query } from "../db.js";
+import {
+  RANKINGS_SORT_OPTIONS,
+  type QueryInput,
+  parseRankingsQuery,
+} from "../params.js";
 
 export const rankingsRouter = Router();
 
-const SORTABLE = {
-  goals: "total_goals",
-  assists: "total_assists",
-  rating: "avg_rating",
-} as const;
-
-type SortKey = keyof typeof SORTABLE;
-
-const DEFAULT_LIMIT = 25;
-const MAX_LIMIT = 100;
-
-function queryString(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-
 // GET /api/rankings?sort=goals&limit=25
 rankingsRouter.get("/", async (req: Request, res) => {
-  const requestedSort = queryString(req.query.sort);
-  const sortKey: SortKey =
-    requestedSort in SORTABLE ? (requestedSort as SortKey) : "goals";
-  const sortColumn = SORTABLE[sortKey];
-
-  let limit = Number.parseInt(queryString(req.query.limit), 10);
-  if (!Number.isInteger(limit) || limit < 1) limit = DEFAULT_LIMIT;
-  if (limit > MAX_LIMIT) limit = MAX_LIMIT;
+  const { sortKey, sortColumn, limit } = parseRankingsQuery(req.query as QueryInput);
 
   try {
     // Avg rating ignores bench/unused rows (minutes_played = 0).
@@ -62,7 +45,7 @@ rankingsRouter.get("/", async (req: Request, res) => {
       data,
       sort: sortKey,
       limit,
-      sortOptions: Object.keys(SORTABLE),
+      sortOptions: RANKINGS_SORT_OPTIONS,
     });
   } catch (err) {
     console.error(err);

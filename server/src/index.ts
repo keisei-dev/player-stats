@@ -1,5 +1,3 @@
-import express from "express";
-import cors from "cors";
 import dotenv from "dotenv";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -7,42 +5,14 @@ import path from "node:path";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
-// Imported after dotenv runs so the pool sees the PG* env vars.
-const { query } = await import("./db.js");
-const { performancesRouter } = await import("./routes/performances.js");
-const { rankingsRouter } = await import("./routes/rankings.js");
+// Imported after dotenv runs so the pool sees DATABASE_URL / PG* env vars.
+const { app } = await import("./app.js");
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+if (!process.env.VERCEL) {
+  const port = Number(process.env.PORT) || 3000;
+  app.listen(port, () => {
+    console.log(`API listening on http://localhost:${port}`);
+  });
+}
 
-app.use("/api/performances", performancesRouter);
-app.use("/api/rankings", rankingsRouter);
-
-app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", service: "player-stats-api" });
-});
-
-app.get("/api/health/db", async (_req, res) => {
-  try {
-    const { rows } = await query<{
-      players: string;
-      matches: string;
-      performances: string;
-    }>(
-      `SELECT
-         (SELECT COUNT(*) FROM players)      AS players,
-         (SELECT COUNT(*) FROM matches)      AS matches,
-         (SELECT COUNT(*) FROM performances) AS performances`
-    );
-    res.json({ status: "ok", counts: rows[0] });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ status: "error", message: "database unavailable" });
-  }
-});
-
-const port = Number(process.env.PORT) || 3000;
-app.listen(port, () => {
-  console.log(`API listening on http://localhost:${port}`);
-});
+export default app;

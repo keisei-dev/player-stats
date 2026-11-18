@@ -1,16 +1,9 @@
 import pg from "pg";
+import { poolConfigFromEnv } from "./pg-config.js";
 
 const { Pool } = pg;
 
-// Shared connection pool configured from the PG* env vars (see .env.example).
-export const pool = new Pool({
-  host: process.env.PGHOST || "localhost",
-  port: Number(process.env.PGPORT) || 5432,
-  user: process.env.PGUSER,
-  password: process.env.PGPASSWORD || undefined,
-  database: process.env.PGDATABASE || "worldcup",
-  max: 10,
-});
+export const pool = new Pool(poolConfigFromEnv());
 
 pool.on("error", (err) => {
   console.error("Unexpected error on idle PostgreSQL client", err);
