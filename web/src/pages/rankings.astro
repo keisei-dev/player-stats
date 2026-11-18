@@ -11,7 +11,7 @@ let error = "";
 try {
   rankings = await apiGet("/api/rankings", { sort, limit });
 } catch (err) {
-  error = "Could not load rankings. Is the API running on port 3000?";
+  error = "Could not load rankings. Is the API running?";
   console.error(err);
 }
 

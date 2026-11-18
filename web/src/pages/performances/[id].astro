@@ -1,6 +1,6 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { apiGet, API_BASE } from "../../lib/api.js";
+import { apiGet, clientApiBase } from "../../lib/api.js";
 
 const { id } = Astro.params;
 let performance = null;
@@ -9,7 +9,7 @@ let error = "";
 try {
   performance = await apiGet(`/api/performances/${id}`);
 } catch (err) {
-  error = "Performance not found or API unavailable.";
+  error = "Performance not found, or the API is unavailable.";
   console.error(err);
 }
 
@@ -69,7 +69,7 @@ function initials(name = "") {
         </div>
       </div>
 
-      <form class="card" id="edit-form" data-api={API_BASE} data-id={performance.id}>
+      <form class="card" id="edit-form" data-api={clientApiBase()} data-id={performance.id}>
         <div class="form-grid">
           <label>
             Opponent team
@@ -139,7 +139,7 @@ function initials(name = "") {
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const api = form.dataset.api;
+    const api = form.dataset.api || "";
     const id = form.dataset.id;
     const data = formToPayload(form);
 
@@ -159,7 +159,7 @@ function initials(name = "") {
   deleteBtn?.addEventListener("click", async () => {
     if (!confirm("Delete this performance?")) return;
     const id = deleteBtn.dataset.id;
-    const api = form?.dataset.api;
+    const api = form?.dataset.api || "";
     const res = await fetch(`${api}/api/performances/${id}`, { method: "DELETE" });
     if (!res.ok && res.status !== 204) {
       alert("Delete failed.");

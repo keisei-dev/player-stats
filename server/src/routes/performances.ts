@@ -1,80 +1,13 @@
 import { Router } from "express";
-import type { Request } from "express";
 import { query } from "../db.js";
+import {
+  ALLOWED_PAGE_SIZES,
+  type QueryInput,
+  parsePerformanceQuery,
+  pickEditable,
+} from "../params.js";
 
 export const performancesRouter = Router();
-
-const ALLOWED_PAGE_SIZES = [10, 25, 50, 100] as const;
-const DEFAULT_PAGE_SIZE = 25;
-
-const SORTABLE_COLUMNS = {
-  id: "pf.id",
-  player_name: "p.player_name",
-  team: "p.team",
-  position: "p.position",
-  match_date: "m.match_date",
-  goals: "pf.goals",
-  assists: "pf.assists",
-  minutes_played: "pf.minutes_played",
-  player_rating: "pf.player_rating",
-} as const;
-
-type SortKey = keyof typeof SORTABLE_COLUMNS;
-
-const EDITABLE_FIELDS = [
-  "opponent_team",
-  "match_result",
-  "minutes_played",
-  "goals",
-  "assists",
-  "shots",
-  "shots_on_target",
-  "player_rating",
-] as const;
-
-type EditableField = (typeof EDITABLE_FIELDS)[number];
-
-function queryString(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-
-function buildFilters(query: Request["query"]) {
-  const conditions: string[] = [];
-  const params: unknown[] = [];
-
-  const q = queryString(query.q).trim();
-  if (q !== "") {
-    params.push(`%${q}%`);
-    conditions.push(`p.player_name ILIKE $${params.length}`);
-  }
-
-  const position = queryString(query.position).trim();
-  if (position !== "") {
-    params.push(position);
-    conditions.push(`p.position = $${params.length}`);
-  }
-
-  const team = queryString(query.team).trim();
-  if (team !== "") {
-    params.push(team);
-    conditions.push(`p.team = $${params.length}`);
-  }
-
-  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-  return { where, params };
-}
-
-function pickEditable(body: Record<string, unknown>) {
-  const fields: EditableField[] = [];
-  const values: unknown[] = [];
-  for (const key of EDITABLE_FIELDS) {
-    if (body[key] !== undefined) {
-      fields.push(key);
-      values.push(body[key] === "" ? null : body[key]);
-    }
-  }
-  return { fields, values };
-}
 
 function isPgError(err: unknown): err is { code?: string } {
   return typeof err === "object" && err !== null && "code" in err;
@@ -101,21 +34,8 @@ performancesRouter.get("/filters", async (_req, res) => {
 
 // GET /api/performances
 performancesRouter.get("/", async (req, res) => {
-  const page = Math.max(1, Number.parseInt(queryString(req.query.page), 10) || 1);
-  const requestedSize = Number.parseInt(queryString(req.query.pageSize), 10);
-  const pageSize = (ALLOWED_PAGE_SIZES as readonly number[]).includes(requestedSize)
-    ? requestedSize
-    : DEFAULT_PAGE_SIZE;
-  const offset = (page - 1) * pageSize;
-
-  const requestedSort = queryString(req.query.sort);
-  const sortKey: SortKey =
-    requestedSort in SORTABLE_COLUMNS ? (requestedSort as SortKey) : "id";
-  const sortColumn = SORTABLE_COLUMNS[sortKey];
-  const sortOrder =
-    queryString(req.query.order).toLowerCase() === "desc" ? "DESC" : "ASC";
-
-  const { where, params } = buildFilters(req.query);
+  const { page, pageSize, offset, sortKey, sortColumn, sortOrder, where, params } =
+    parsePerformanceQuery(req.query as QueryInput);
 
   try {
     const totalResult = await query<{ total: number }>(

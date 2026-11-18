@@ -1,6 +1,6 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { API_BASE } from "../../lib/api.js";
+import { clientApiBase } from "../../lib/api.js";
 ---
 
 <Layout title="Add Performance" active="performances">
@@ -19,7 +19,7 @@ import { API_BASE } from "../../lib/api.js";
     Unknown IDs or duplicates will return an error.
   </p>
 
-  <form class="card" id="create-form" data-api={API_BASE}>
+  <form class="card" id="create-form" data-api={clientApiBase()}>
     <div class="form-grid">
       <label>
         Player ID (required)
@@ -94,7 +94,7 @@ import { API_BASE } from "../../lib/api.js";
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const api = form.dataset.api;
+    const api = form.dataset.api || "";
     const data = formToPayload(form);
 
     const res = await fetch(`${api}/api/performances`, {

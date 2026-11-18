@@ -11,6 +11,8 @@ dist/
 **/dist/
 .astro/
 **/.astro/
+.vercel/
+**/.vercel/
 
 # logs
 *.log
